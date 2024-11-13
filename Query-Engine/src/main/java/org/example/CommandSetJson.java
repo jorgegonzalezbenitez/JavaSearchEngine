@@ -9,10 +9,10 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.util.*;
 
-public class CommandSet {
+public class CommandSetJson {
     private final String JSON_FILE_PATH;
 
-    public CommandSet(String JSON_FILE_PATH) throws FileNotFoundException {
+    public CommandSetJson(String JSON_FILE_PATH) {
         this.JSON_FILE_PATH = JSON_FILE_PATH;
     }
 
@@ -22,147 +22,73 @@ public class CommandSet {
             return null;
         }
         try (FileReader reader = new FileReader(jsonFilePath)) {
-            JSONTokener tokener = new JSONTokener(reader);
-            JSONObject jsonObject = new JSONObject(tokener);
+            JSONObject jsonObject = new JSONObject(new JSONTokener(reader));
             return jsonObject.optJSONArray(jsonObject.keys().next());
         } catch (FileNotFoundException e) {
             System.out.println("File not found: " + jsonFilePath);
-            return null;
-        } catch (org.json.JSONException e) {
-            System.out.println("Error reading JSON file: " + e.getMessage());
-            return null;
         } catch (Exception e) {
-            System.out.println("Unexpected error: " + e.getMessage());
-            return null;
+            System.out.println("Error reading JSON file: " + e.getMessage());
         }
+        return null;
     }
 
-    public String findBooksWithCommonWords() {
-        Scanner scanner = new Scanner(System.in);
+    public Map<String, Map<String, List<String>>> findWords() {
         System.out.println("Enter the words you wish to search (separated by commas):");
-        String input = scanner.nextLine().trim();
+        String[] words = new Scanner(System.in).nextLine().trim().split("\\s*,\\s*");
 
-        // Dividir las palabras por comas y eliminar espacios adicionales
-        String[] words = input.split("\\s*,\\s*");
+        if (words.length < 1) return Collections.emptyMap();
 
-        if (words.length < 1) {
-            return "Please enter at least one word separated by commas.";
-        }
-
-        // Cargar los datos para cada palabra ingresada
         List<JSONArray> wordDataArrays = new ArrayList<>();
         for (String word : words) {
-            String wordPath = getJsonFilePathForWord(word, JSON_FILE_PATH);
-            JSONArray wordData = loadJsonData(wordPath);
-            if (wordData == null) {
-                return "One of the search files could not be loaded for word: " + word;
-            }
+            JSONArray wordData = loadJsonData(getJsonFilePathForWord(word, JSON_FILE_PATH));
+            if (wordData == null) return Collections.emptyMap();
             wordDataArrays.add(wordData);
         }
-
-        // Encontrar libros comunes y formatear la salida
-        Map<String, Map<String, List<String>>> commonBooks = findAndGroupBooks(wordDataArrays, words);
-
-        return formatOutput(commonBooks);
+        return findAndGroupBooks(wordDataArrays, words);
     }
 
     private Map<String, Map<String, List<String>>> findAndGroupBooks(List<JSONArray> wordDataArrays, String[] words) {
         List<Map<String, Map<String, List<String>>>> wordMaps = new ArrayList<>();
-
-        for (JSONArray wordData : wordDataArrays) {
+        for (int i = 0; i < wordDataArrays.size(); i++) {
             Map<String, Map<String, List<String>>> bookMap = new HashMap<>();
-            for (int i = 0; i < wordData.length(); i++) {
-                JSONObject book = wordData.getJSONObject(i);
-                String title = book.optString("title");
-                String author = book.optString("author");
-                String releaseDate = book.optString("release_date");
-                String lineText = book.optString("line_text") + " (Line: " + book.optString("line_number") + ")";
-                String key = title + " | " + author + " | " + releaseDate;
-
-                bookMap.putIfAbsent(key, new HashMap<>());
-                bookMap.get(key).putIfAbsent(words[wordMaps.size()], new ArrayList<>());
-                bookMap.get(key).get(words[wordMaps.size()]).add(lineText);
+            for (Object obj : wordDataArrays.get(i)) {
+                JSONObject book = (JSONObject) obj;
+                String key = book.optString("title") + " | " + book.optString("author") + " | " + book.optString("release_date");
+                bookMap.computeIfAbsent(key, k -> new HashMap<>())
+                        .computeIfAbsent(words[i], k -> new ArrayList<>())
+                        .add(book.optString("line_text") + " (Line: " + book.optString("line_number") + ")");
             }
             wordMaps.add(bookMap);
         }
 
-        // Identificar libros comunes
         Set<String> commonKeys = new HashSet<>(wordMaps.get(0).keySet());
-        for (Map<String, Map<String, List<String>>> map : wordMaps) {
-            commonKeys.retainAll(map.keySet());
-        }
+        wordMaps.forEach(map -> commonKeys.retainAll(map.keySet()));
 
-        // Crear estructura final solo con libros comunes
         Map<String, Map<String, List<String>>> commonBooks = new HashMap<>();
         for (String key : commonKeys) {
             Map<String, List<String>> groupedLines = new HashMap<>();
             for (int i = 0; i < words.length; i++) {
-                Map<String, Map<String, List<String>>> map = wordMaps.get(i);
-                if (map.containsKey(key)) {
-                    groupedLines.put(words[i], map.get(key).get(words[i]));
+                if (wordMaps.get(i).containsKey(key)) {
+                    groupedLines.put(words[i], wordMaps.get(i).get(key).get(words[i]));
                 }
             }
             commonBooks.put(key, groupedLines);
         }
-
         return commonBooks;
-    }
-
-    private String formatOutput(Map<String, Map<String, List<String>>> commonBooks) {
-        StringBuilder result = new StringBuilder();
-        result.append("------------------------------------------------\n");
-
-        if (commonBooks.isEmpty()) {
-            result.append("No common books found.\n");
-        } else {
-            for (Map.Entry<String, Map<String, List<String>>> entry : commonBooks.entrySet()) {
-                String[] keyParts = entry.getKey().split(" \\| ");
-                String title = keyParts[0];
-                String author = keyParts[1];
-                String releaseDate = keyParts[2];
-
-                result.append("Title: ").append(title).append("\n");
-                result.append("Author: ").append(author).append("\n");
-                result.append("Release Date: ").append(releaseDate).append("\n");
-                result.append("Lines:\n");
-
-                for (Map.Entry<String, List<String>> wordEntry : entry.getValue().entrySet()) {
-                    String word = wordEntry.getKey();
-                    List<String> lines = wordEntry.getValue();
-                    result.append("[").append(word).append("] (").append(lines.size()).append(")\n");
-                    for (String line : lines) {
-                        result.append(" - ").append(line).append("\n");
-                    }
-                }
-                result.append("------------------------------------------------\n");
-            }
-        }
-
-        return result.toString();
     }
 
     private String getJsonFilePathForWord(String word, String basePath) {
         if (word.isEmpty()) return null;
         char firstChar = Character.toUpperCase(word.charAt(0));
-
-        String subfolder = null;
-        if (firstChar >= 'A' && firstChar <= 'D') {
-            subfolder = "A-D";
-        } else if (firstChar >= 'E' && firstChar <= 'H') {
-            subfolder = "E-H";
-        } else if (firstChar >= 'I' && firstChar <= 'L') {
-            subfolder = "I-L";
-        } else if (firstChar >= 'M' && firstChar <= 'P') {
-            subfolder = "M-P";
-        } else if (firstChar >= 'Q' && firstChar <= 'T') {
-            subfolder = "Q-T";
-        } else if (firstChar >= 'U' && firstChar <= 'Z') {
-            subfolder = "U-Z";
-        }
-
-        if (subfolder != null) {
-            return basePath + File.separator + subfolder + File.separator + word.toLowerCase() + ".json";
-        }
-        return null;
+        String subfolder = switch (firstChar) {
+            case 'A', 'B', 'C', 'D' -> "A-D";
+            case 'E', 'F', 'G', 'H' -> "E-H";
+            case 'I', 'J', 'K', 'L' -> "I-L";
+            case 'M', 'N', 'O', 'P' -> "M-P";
+            case 'Q', 'R', 'S', 'T' -> "Q-T";
+            case 'U', 'V', 'W', 'X', 'Y', 'Z' -> "U-Z";
+            default -> null;
+        };
+        return subfolder != null ? basePath + File.separator + subfolder + File.separator + word.toLowerCase() + ".json" : null;
     }
 }

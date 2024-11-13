@@ -2,10 +2,9 @@ package org.example;
 
 import org.bson.json.JsonParseException;
 
-import java.util.List;
-
-public interface JsonQueryProvider {
-    String searchInJsonDatamart(int searchType) throws JsonParseException;
+public interface UserQueryProvider {
+    String searchInJsonDatamart(String option) throws JsonParseException;
 
 
+    String searchInMongoDatamart(String option);
 }

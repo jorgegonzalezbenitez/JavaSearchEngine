@@ -1,3 +1,4 @@
+package testIndexer;
 
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
@@ -5,8 +6,10 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.UpdateOptions;
 import org.bson.Document;
-import org.json.JSONObject;
 import org.json.JSONArray;
+import org.json.JSONObject;
+import org.openjdk.jmh.annotations.*;
+import org.example.BuiltInvertedIndex;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -14,15 +17,34 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
-public class StoreInvertedIndexTest {
+@BenchmarkMode(Mode.AverageTime)
+@OutputTimeUnit(TimeUnit.MILLISECONDS)
+@State(Scope.Benchmark)
+@Warmup(iterations = 5, time = 1, timeUnit = TimeUnit.MILLISECONDS)
+@Measurement(iterations = 10, time = 1, timeUnit = TimeUnit.MILLISECONDS)
+@Fork(1)
+public class IndexerTest {
 
-    private static final String DB_NAME = "BooksDatabase";
-    private static final String COLLECTION_NAME = "InvertedIndex";
+    private static final String DB_NAME = "BooksDatabaseTest";
+    private static final String COLLECTION_NAME = "InvertedIndexTest";
+    private static final String DATALAKE_PATH = "C:\\Users\\jorge gonzalez\\Documents\\Tercero 2024-2025\\1er Cuatri\\Big Data\\JavaSearchEngine\\SearchEngine\\Datalake"; // Cambia a la ruta real del datalake
 
+    private Map<String, List<Document>> invertedDict;
+    private String outputFolderPath;
 
-    public void storeInvertedIndexJson(Map<String, List<Document>> invertedDict, String outputFolderPath) {
-        File baseFolder = new File(outputFolderPath, "jsonDatamart");
+    @Setup(Level.Trial)
+    public void setup() {
+        BuiltInvertedIndex indexBuilder = new BuiltInvertedIndex();
+        invertedDict = indexBuilder.buildInvertedIndex(DATALAKE_PATH);
+
+        outputFolderPath = "outputJsonTest";
+    }
+
+    @Benchmark
+    public void storeInvertedIndexJson() {
+        File baseFolder = new File(outputFolderPath, "jsonDatamartTest");
         if (!baseFolder.exists()) baseFolder.mkdirs();
 
         invertedDict.forEach((word, metadataList) -> {
@@ -31,12 +53,9 @@ public class StoreInvertedIndexTest {
                 System.err.println("No se encontró idioma para la palabra: " + word);
                 return;
             }
-
-            // Crear las carpetas de idioma y subdirectorio
             File subFolder = new File(new File(baseFolder, language), getSubfolderName(word));
             if (!subFolder.exists()) subFolder.mkdirs();
 
-            // Crear el JSON y guardar en archivo
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(new File(subFolder, word + ".json")))) {
                 JSONObject jsonWordObject = new JSONObject().put(word, new JSONArray(metadataList));
                 writer.write(jsonWordObject.toString(4));
@@ -47,8 +66,8 @@ public class StoreInvertedIndexTest {
         });
     }
 
-
-    public void storeInvertedIndexMongo(Map<String, List<Document>> invertedDict) {
+    @Benchmark
+    public void storeInvertedIndexMongo() {
         try (MongoClient mongoClient = MongoClients.create("mongodb://localhost:27017")) {
             MongoDatabase db = mongoClient.getDatabase(DB_NAME);
             MongoCollection<Document> collection = db.getCollection(COLLECTION_NAME);
