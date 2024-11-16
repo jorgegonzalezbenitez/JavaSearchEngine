@@ -34,11 +34,9 @@ public class StoreInvertedIndex implements InvertedIndexStorer {
                 return;
             }
 
-            // Crear las carpetas de idioma y subdirectorio
             File subFolder = new File(new File(baseFolder, language), getSubfolderName(word));
             if (!subFolder.exists()) subFolder.mkdirs();
 
-            // Crear el JSON y guardar en archivo
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(new File(subFolder, word + ".json")))) {
                 JSONObject jsonWordObject = new JSONObject().put(word, new JSONArray(metadataList));
                 writer.write(jsonWordObject.toString(4));

@@ -1,6 +1,8 @@
 package org.example;
 
 import org.bson.Document;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -14,8 +16,8 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 
 public class BuiltInvertedIndex implements InvertedIndexBuilder {
 
-    MetadataExtraction metadataExtraction = new MetadataExtraction();
-
+    private static final Logger logger = LoggerFactory.getLogger(BuiltInvertedIndex.class);
+    private MetadataExtraction metadataExtraction = new MetadataExtraction();
     private static final CharArraySet stopWords = (CharArraySet) StandardAnalyzer.STOP_WORDS_SET;
 
     @Override
@@ -49,11 +51,11 @@ public class BuiltInvertedIndex implements InvertedIndexBuilder {
                         }
                     }
                 } catch (IOException e) {
-                    System.err.println("Error processing file " + path.getFileName() + ": " + e.getMessage());
+                    logger.error("Error processing file {}: {}", path.getFileName(), e.getMessage());
                 }
             }
         } catch (IOException e) {
-            System.err.println("Error reading datalake path: " + e.getMessage());
+            logger.error("Error reading datalake path: {}", e.getMessage());
         }
 
         return invertedIndex;

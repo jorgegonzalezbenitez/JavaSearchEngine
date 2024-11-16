@@ -1,9 +1,6 @@
 package org.example;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
@@ -51,9 +48,11 @@ public class Crawler {
         connection.setRequestMethod("GET");
 
         if (connection.getResponseCode() == HttpURLConnection.HTTP_OK) {
-            try (Scanner scanner = new Scanner(connection.getInputStream())) {
+            try (Scanner scanner = new Scanner(new InputStreamReader(connection.getInputStream(), "UTF-8"))) {
                 StringBuilder content = new StringBuilder();
-                while (scanner.hasNextLine()) content.append(scanner.nextLine()).append(System.lineSeparator());
+                while (scanner.hasNextLine()) {
+                    content.append(scanner.nextLine()).append(System.lineSeparator());
+                }
                 return content.toString();
             }
         } else {
@@ -65,7 +64,8 @@ public class Crawler {
         String sanitizedTitle = title.replaceAll("[\\\\/:*?\"<>|]", "_");
         File outputFile = new File(outputFolder, "book_" + sanitizedTitle + ".txt");
 
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile))) {
+        // Usar OutputStreamWriter con codificación UTF-8
+        try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(outputFile), "UTF-8"))) {
             writer.write(content);
             return true;
         } catch (IOException e) {
@@ -73,4 +73,5 @@ public class Crawler {
             return false;
         }
     }
+
 }
